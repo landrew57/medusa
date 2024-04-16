@@ -44,36 +44,56 @@ jobs:
     - name: Debug
       run: docker ps -a
 
+    - name: Create v1 secrets engine
+      run: "curl --header 'X-Vault-Token: my-root-token' --request POST --data '{\"type\":\"kv\", \"version\":1}' http://0.0.0.0:8201/v1/sys/mounts/secret_v1"
+
     - name: Run Medusa import
       run: ./medusa import secret ./test/data/import-example-1.yaml -a="http://0.0.0.0:8201" -t="my-root-token" --insecure
+
+    - name: Run Medusa import kv1 
+      run: ./medusa import secret_v1 ./test/data/import-example-1.yaml -a="http://0.0.0.0:8201" -t="my-root-token" --insecure --engine-type=kv1
 
     - name: Run Medusa export yaml
       run: ./medusa export secret/A -a="http://0.0.0.0:8201" -t="my-root-token" --insecure
     
+    - name: Run Medusa export yaml kv1
+      run: ./medusa export secret_v1/A -a="http://0.0.0.0:8201" -t="my-root-token" --insecure --engine-type=kv1
+    
     - name: Run Medusa export json
       run: ./medusa export secret/A -a="http://0.0.0.0:8201" -t="my-root-token" --format="json" --insecure
+
+    - name: Run Medusa export json kv1
+      run: ./medusa export secret_v1/A -a="http://0.0.0.0:8201" -t="my-root-token" --format="json" --insecure --engine-type=kv1
 
     - name: Generate certificates
       run: openssl genrsa -out private-key.pem 2048 && openssl rsa -in private-key.pem -pubout -out public-key.pem
     - name: Export and encrypt
       run: ./medusa export secret/A -a="http://0.0.0.0:8201" -t="my-root-token" --insecure --encrypt true --public-key="./public-key.pem" --output encrypted-export.txt
+    - name: Export and encrypt kv1
+      run: ./medusa export secret_v1/A -a="http://0.0.0.0:8201" -t="my-root-token" --insecure --encrypt true --public-key="./public-key.pem" --output encrypted-export.txt --engine-type=kv1
     - name: Decrypt and import
       run: ./medusa import secret/decrypted encrypted-export.txt -a="http://0.0.0.0:8201" -t="my-root-token" --insecure --decrypt true --private-key private-key.pem
+    - name: Decrypt and import kv1
+      run: ./medusa import secret_v1/decrypted encrypted-export.txt -a="http://0.0.0.0:8201" -t="my-root-token" --insecure --decrypt true --private-key private-key.pem --engine-type=kv1
 
 
     - name: Get secret
       run: "curl -H 'X-Vault-Token: my-root-token' -X GET http://0.0.0.0:8201/v1/secret/data/A/B/C/D/Db"
     - name: Get secret from decrypted
       run: "curl -H 'X-Vault-Token: my-root-token' -X GET http://0.0.0.0:8201/v1/secret/data/decrypted/A/B/C/D/Db"
+    - name: Get secret kv1
+      run: "curl -H 'X-Vault-Token: my-root-token' -X GET http://0.0.0.0:8201/v1/secret_v1/A/B/C/D/Db"
+    - name: Get secret from decrypted kv1
+      run: "curl -H 'X-Vault-Token: my-root-token' -X GET http://0.0.0.0:8201/v1/secret_v1/decrypted/A/B/C/D/Db"
     - name: Go Report update
-      if: ${{ github.repository == 'jonasvinther/medusa' }}
+      if: github.repository == 'jonasvinther/medusa'
       run: "curl -X POST -F \"repo=github.com/$GITHUB_REPOSITORY\" https://goreportcard.com/checks"
     
     - name: Run codecov
       run: go test -race -covermode=atomic -v ./... -coverprofile=coverage.txt
 
     - name: Upload coverage to Codecov
-      if: success() && ${{ github.repository == 'jonasvinther/medusa' }}
+      if: success() && github.repository == 'jonasvinther/medusa'
       uses: codecov/codecov-action@v1
       with:
         file: ./coverage.txt
